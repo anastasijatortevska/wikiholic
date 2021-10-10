@@ -1,44 +1,28 @@
-import wikipedia
-import smtplib, ssl
-from email.mime.text import MIMEText
-from email.mime.multipart import MIMEMultipart
+import yagmail, requests, shutil
 
 def get_article():
-    title = wikipedia.random()
-    page = wikipedia.page(title)
+    title = requests.get("https://en.wikipedia.org/api/rest_v1/page/random/title")
+    req = requests.get("https://en.wikipedia.org/api/rest_v1/page/pdf/{title}".format(title=title))
 
-    return page
-
-def make_message(page, sender_email, receiver_email):
-    message = MIMEMultipart("alternative")
-    message["Subject"] = "Wikiholic: " + page.title
-    message["From"] = sender_email
-    message["To"] = receiver_email
-
-    plaintext = page.content
-    fancytext = "<html>\n<body>\n" + page.html() + "\n<\body>\n<\html>"
-
-    part1 = MIMEText(plaintext, "plain")
-    part2 = MIMEText(fancytext, "html")
-
-    message.attach(part1)
-    message.attach(part2)
-
-    return message
+    if req.status_code == 200:
+        with open("./out.pdf", "wb") as file:
+            req.raw.decode_content = True
+            shutil.copyfileobj(req.raw, file)
 
 if __name__ == '__main__':
-    page = get_article()
+    get_article()
 
-    port = 465  # For SSL
-    smtp_server = "smtp.gmail.com"
-    sender_email = "wikiholictoday@gmail.com"  # Enter your address
-    receiver_email = "anastasija.tortevska@gmail.com"  # Enter receiver address
-    password = input("Type your password and press enter: ")
+    html_msg = """
+        <table cellspacing="0" cellpadding="0">
+        <tr>
+        <td align="center" width="300" height="40" bgcolor="#000091" style="-webkit-border-radius: 5px; -moz-border-radius: 5px; border-radius: 5px; color: #ffffff; display: block;">
+        <a href="{link}" style="font-size:16px; font-weight: bold; font-family: Helvetica, Arial, sans-serif; text-decoration: none; line-height:30px; width:100%; display:inline-block"><span style="color: #FFFFFF">Awesome Email Button</span></a>
+        </td>
+        </tr>
+        </table>
+        """.format(link = "")
 
-    msg = make_message(page, sender_email, receiver_email)
+    yag = yagmail.SMTP("wikiholictoday", "wikiwiki123")
 
-    context = ssl.create_default_context()
-    with smtplib.SMTP_SSL(smtp_server, port, context=context) as server:
-        server.login(sender_email, password)
-        server.sendmail(sender_email, receiver_email, msg)
-
+    for email in ["anastasija.tortevska@gmail.com", "martin.ristovski@columbia.edu"]:
+        yag.send(email, "the subject", html_msg)
